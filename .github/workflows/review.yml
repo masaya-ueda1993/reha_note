@@ -1,0 +1,44 @@
+name: Claude Code Review
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          echo "files=$(git diff --name-only HEAD~1 HEAD | tr '\n' ' ')" >> $GITHUB_OUTPUT
+
+      - name: Claude Code Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          pip install anthropic
+          python3 - <<'EOF'
+          import anthropic
+          import subprocess
+
+          diff = subprocess.check_output(['git', 'diff', 'HEAD~1', 'HEAD']).decode()
+          
+          client = anthropic.Anthropic()
+          response = client.messages.create(
+              model="claude-sonnet-4-6",
+              max_tokens=1000,
+              messages=[{
+                  "role": "user",
+                  "content": f"以下のコードをレビューしてください。問題点や改善点を日本語で指摘してください。\n\n{diff}"
+              }]
+          )
+          print(response.content[0].text)
+          EOF
