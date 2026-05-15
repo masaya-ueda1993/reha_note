@@ -15,22 +15,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get changed files
-        id: changed-files
-        run: |
-          echo "files=$(git diff --name-only HEAD~1 HEAD | tr '\n' ' ')" >> $GITHUB_OUTPUT
-
-      - name: Claude Code Review
+      - name: Claude Code Review & Slack通知
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          pip install anthropic
+          pip install anthropic requests
           python3 - <<'EOF'
           import anthropic
           import subprocess
+          import requests
+          import os
 
           diff = subprocess.check_output(['git', 'diff', 'HEAD~1', 'HEAD']).decode()
-          
+
+          if not diff.strip():
+              print("差分なし")
+              exit()
+
           client = anthropic.Anthropic()
           response = client.messages.create(
               model="claude-sonnet-4-6",
@@ -40,5 +42,13 @@ jobs:
                   "content": f"以下のコードをレビューしてください。問題点や改善点を日本語で指摘してください。\n\n{diff}"
               }]
           )
-          print(response.content[0].text)
+
+          review = response.content[0].text
+
+          webhook_url = os.environ['SLACK_WEBHOOK_URL']
+          requests.post(webhook_url, json={
+              "text": f"*📝 Claude コードレビュー結果*\n\n{review}"
+          })
+
+          print(review)
           EOF
