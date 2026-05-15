@@ -27,28 +27,20 @@ jobs:
           import requests
           import os
 
-          diff = subprocess.check_output(['git', 'diff', 'HEAD~1', 'HEAD']).decode()
+          # 機密ファイルを除外してdiff取得
+          diff = subprocess.check_output([
+              'git', 'diff', 'HEAD~1', 'HEAD',
+              '--', 
+              ':(exclude).env',
+              ':(exclude).env.*',
+              ':(exclude)*.key',
+              ':(exclude)*.pem',
+          ]).decode()
 
           if not diff.strip():
               print("差分なし")
               exit()
 
-          client = anthropic.Anthropic()
-          response = client.messages.create(
-              model="claude-sonnet-4-6",
-              max_tokens=1000,
-              messages=[{
-                  "role": "user",
-                  "content": f"以下のコードをレビューしてください。問題点や改善点を日本語で指摘してください。\n\n{diff}"
-              }]
-          )
-
-          review = response.content[0].text
-
-          webhook_url = os.environ['SLACK_WEBHOOK_URL']
-          requests.post(webhook_url, json={
-              "text": f"*📝 Claude コードレビュー結果*\n\n{review}"
-          })
-
-          print(review)
-          EOF
+          # diffのサイズを制限（3000文字まで）
+          if len(diff) > 3000:
+              diff = diff[:3000] + "\n\n...(省
