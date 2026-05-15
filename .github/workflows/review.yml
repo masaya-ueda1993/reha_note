@@ -15,32 +15,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Claude Code Review & Slack通知
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install anthropic requests
+
+      - name: Claude Code Review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          pip install anthropic requests
-          python3 - <<'EOF'
-          import anthropic
-          import subprocess
-          import requests
-          import os
-
-          # 機密ファイルを除外してdiff取得
-          diff = subprocess.check_output([
-              'git', 'diff', 'HEAD~1', 'HEAD',
-              '--', 
-              ':(exclude).env',
-              ':(exclude).env.*',
-              ':(exclude)*.key',
-              ':(exclude)*.pem',
-          ]).decode()
-
-          if not diff.strip():
-              print("差分なし")
-              exit()
-
-          # diffのサイズを制限（3000文字まで）
-          if len(diff) > 3000:
-              diff = diff[:3000] + "\n\n...(省
+        run: python review.py
